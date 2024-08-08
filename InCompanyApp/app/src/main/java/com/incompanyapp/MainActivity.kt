@@ -223,21 +223,6 @@ fun HomePage(modifier: Modifier = Modifier) {
             }
         }
 
-        Text(
-            text = "Bem-vindo/a!",
-            fontSize = 24.sp
-        )
-        Spacer(modifier = Modifier.size(24.dp))
-        Row(modifier = modifier) {
-            Button(
-                onClick = {
-                    activity?.finish()
-                }
-            ) {
-                Text("Sair")
-            }
-        }
-
         if (openDialog) {
             AlertDialog(
                 onDismissRequest = {},
