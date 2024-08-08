@@ -6,17 +6,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.List
@@ -26,19 +17,23 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.incompanyapp.data.model.Company
+import com.incompanyapp.data.repository.CompanyRepository
+import com.incompanyapp.data.repository.registerCompany
 import com.incompanyapp.ui.theme.InCompanyAppTheme
 import kotlinx.coroutines.launch
-
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
         setContent {
             InCompanyAppTheme {
                 Surface(
@@ -56,9 +51,11 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainScreen() {
     var selectedScreen by remember { mutableStateOf("home") }
+    var selectedCompany by remember { mutableStateOf<Company?>(null) }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     var shouldLogout by remember { mutableStateOf(false) }
+    var companies by remember { mutableStateOf(CompanyRepository.getCompanies()) }
 
     if (shouldLogout) {
         val activity = LocalContext.current as? Activity
@@ -66,12 +63,19 @@ fun MainScreen() {
             activity?.finish()
         }
     }
+
     Box {
         ModalNavigationDrawer(
             drawerState = drawerState,
             gesturesEnabled = true,
             drawerContent = {
                 DrawerContent(
+                    companies = companies,
+                    selectedCompany = selectedCompany,
+                    onCompanySelected = { company ->
+                        selectedCompany = company
+                        scope.launch { drawerState.close() }
+                    },
                     onLogout = {
                         shouldLogout = true
                     }
@@ -108,7 +112,15 @@ fun MainScreen() {
                     }
                 ) { padding ->
                     when (selectedScreen) {
-                        "home" -> HomePage(Modifier.padding(padding))
+                        "home" -> HomePage(
+                            modifier = Modifier.padding(padding),
+                            selectedCompany = selectedCompany,
+                            companies = companies,
+                            onCompanyAdded = { newCompany ->
+                                companies = CompanyRepository.getCompanies()
+                                selectedCompany = newCompany
+                            }
+                        )
                         "clock" -> ClockPage(Modifier.padding(padding))
                         "activityList" -> ActivityListPage(Modifier.padding(padding))
                     }
@@ -116,11 +128,15 @@ fun MainScreen() {
             }
         )
     }
-
 }
 
 @Composable
-fun DrawerContent(onLogout: () -> Unit) {
+fun DrawerContent(
+    companies: List<Company>,
+    selectedCompany: Company?,
+    onCompanySelected: (Company) -> Unit,
+    onLogout: () -> Unit
+) {
     Column(
         modifier = Modifier
             .width(240.dp)
@@ -132,9 +148,16 @@ fun DrawerContent(onLogout: () -> Unit) {
     ) {
         Text("Companies", fontSize = 20.sp, modifier = Modifier.padding(bottom = 8.dp))
 
-        val companies = listOf("Company A", "Company B", "Company C")
         for (company in companies) {
-            Text(text = company, fontSize = 16.sp, modifier = Modifier.padding(vertical = 8.dp))
+            Text(
+                text = company.name,
+                fontSize = 16.sp,
+                modifier = Modifier
+                    .padding(vertical = 8.dp)
+                    .clickable { onCompanySelected(company) }
+                    .background(if (selectedCompany?.id == company.id) MaterialTheme.colorScheme.primary else Color.Transparent)
+                    .padding(8.dp)
+            )
         }
 
         Spacer(modifier = Modifier.weight(1f))
@@ -172,11 +195,15 @@ fun BottomNavigationBar(selectedScreen: String, onScreenSelected: (String) -> Un
     }
 }
 
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Preview(showBackground = true)
 @Composable
-fun HomePage(modifier: Modifier = Modifier) {
+fun HomePage(
+    modifier: Modifier = Modifier,
+    selectedCompany: Company?,
+    companies: List<Company>,
+    onCompanyAdded: (Company) -> Unit
+) {
     val activity = LocalContext.current as? Activity
     var openDialog by remember { mutableStateOf(true) }
     var companyCode by rememberSaveable { mutableStateOf("") }
@@ -192,6 +219,13 @@ fun HomePage(modifier: Modifier = Modifier) {
             text = "Bem-vindo/a!",
             fontSize = 24.sp
         )
+        selectedCompany?.let {
+            Text(
+                text = "Empresa: ${it.name}",
+                fontSize = 18.sp,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+        }
         Spacer(modifier = Modifier.size(24.dp))
         Row(modifier = modifier) {
             Button(
@@ -222,7 +256,12 @@ fun HomePage(modifier: Modifier = Modifier) {
                 },
                 confirmButton = {
                     Button(
-                        onClick = { openDialog = false },
+                        onClick = {
+                            // Registrar uma nova companhia com o código inserido
+                            val newCompany = registerCompany(companyCode, "Endereço Desconhecido")
+                            onCompanyAdded(newCompany)
+                            openDialog = false
+                        },
                         enabled = companyCode.isNotEmpty()
                     ) {
                         Text("Enter")
