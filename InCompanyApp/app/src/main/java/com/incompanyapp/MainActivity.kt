@@ -4,8 +4,8 @@ import android.app.Activity
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,8 +26,9 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -79,19 +80,26 @@ fun MainScreen() {
             content = {
                 Scaffold(
                     topBar = {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(16.dp)
-                        ) {
-                            IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                                Icon(Icons.Filled.List, contentDescription = "Open Drawer")
-                            }
-                            Spacer(modifier = Modifier.size(16.dp))
-                            Text(
-                                text = "Sidebar",
-                                fontSize = 20.sp
-                            )
-                        }
+                        TopAppBar(
+                            title = {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Spacer(modifier = Modifier.weight(1f))
+                                    Logo()
+                                    Spacer(modifier = Modifier.weight(1f))
+                                }
+                            },
+                            navigationIcon = {
+                                IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                                    Icon(Icons.Filled.List, contentDescription = "Open Drawer")
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            actions = { Spacer(modifier = Modifier.size(48.dp)) }
+                        )
                     },
                     bottomBar = {
                         BottomNavigationBar(selectedScreen = selectedScreen) { screen ->
@@ -115,7 +123,7 @@ fun MainScreen() {
 fun DrawerContent(onLogout: () -> Unit) {
     Column(
         modifier = Modifier
-            .width(240.dp)  // Adjust the width as needed
+            .width(240.dp)
             .fillMaxHeight()
             .background(MaterialTheme.colorScheme.surface)
             .padding(16.dp),
@@ -150,7 +158,7 @@ fun BottomNavigationBar(selectedScreen: String, onScreenSelected: (String) -> Un
             onClick = { onScreenSelected("home") }
         )
         NavigationBarItem(
-            icon = { Icon(Icons.Filled.PlayArrow, contentDescription = "Clock") }, // Placeholder icon for "Clock"
+            icon = { Icon(Icons.Filled.PlayArrow, contentDescription = "Clock") },
             label = { Text("Clock") },
             selected = selectedScreen == "clock",
             onClick = { onScreenSelected("clock") }
@@ -249,4 +257,14 @@ fun ActivityListPage(modifier: Modifier = Modifier) {
     ) {
         Text("Activity List Page", fontSize = 24.sp)
     }
+}
+
+@Composable
+fun Logo() {
+    Image(
+        painter = painterResource(id = R.drawable.logo),
+        contentDescription = "App Logo",
+        modifier = Modifier.size(32.dp),
+        contentScale = ContentScale.Crop
+    )
 }
