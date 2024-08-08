@@ -6,6 +6,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,22 +18,31 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.incompanyapp.ui.theme.InCompanyAppTheme
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 
@@ -188,6 +198,31 @@ fun HomePage(modifier: Modifier = Modifier) {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        Box(
+            modifier = Modifier
+                .padding(16.dp)
+                .background(Color.LightGray)
+                .padding(16.dp)
+                .fillMaxWidth(),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = "Banco de Horas:",
+                    fontSize = 18.sp,
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    text = "+ 03:45:30",
+                    fontSize = 32.sp,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+
         Text(
             text = "Bem-vindo/a!",
             fontSize = 24.sp
@@ -235,6 +270,31 @@ fun HomePage(modifier: Modifier = Modifier) {
 
 @Composable
 fun ClockPage(modifier: Modifier = Modifier) {
+    var isRunning by remember { mutableStateOf(false) }
+    var elapsedTime by remember { mutableStateOf(0) }
+    var isPaused by remember { mutableStateOf(false) }
+    val timer = remember { mutableStateOf(0L) }
+    val coroutineScope = rememberCoroutineScope()
+
+    // Timer logic
+    LaunchedEffect(isRunning) {
+        if (isRunning) {
+            timer.value = System.currentTimeMillis()
+            while (isRunning) {
+                if (!isPaused) {
+                    delay(1000) // Delay for 1 second
+                    elapsedTime = ((System.currentTimeMillis() - timer.value) / 1000).toInt()
+                }
+            }
+        }
+    }
+
+    fun formatTime(seconds: Int): String {
+        val minutes = seconds / 60
+        val displaySeconds = seconds % 60
+        return String.format("%02d:%02d", minutes, displaySeconds)
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -242,20 +302,117 @@ fun ClockPage(modifier: Modifier = Modifier) {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text("Clock Page", fontSize = 24.sp)
+        Box(
+            modifier = Modifier
+                .padding(16.dp)
+                .background(Color.LightGray)
+                .padding(16.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = formatTime(elapsedTime),
+                    fontSize = 24.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    Button(
+                        onClick = {
+                            if (!isRunning) {
+                                timer.value = System.currentTimeMillis()
+                                isRunning = true
+                                isPaused = false
+                            }
+                        }
+                    ) {
+                        Icon(Icons.Filled.PlayArrow, contentDescription = "Start")
+                    }
+                    Button(
+                        onClick = {
+                            if (isRunning) {
+                                isPaused = !isPaused
+                            }
+                        }
+                    ) {
+                        Icon(Icons.Filled.Clear, contentDescription = "Pause")
+                    }
+                    Button(
+                        onClick = {
+                            isRunning = false
+                            isPaused = false
+                            elapsedTime = 0
+                        }
+                    ) {
+                        Icon(Icons.Filled.Refresh, contentDescription = "Stop")
+                    }
+                }
+            }
+        }
     }
 }
 
 @Composable
 fun ActivityListPage(modifier: Modifier = Modifier) {
+    val hoursWorked = listOf(
+        "25/06/24 - 07:20:10",
+        "26/06/24 - 08:50:11",
+        "27/06/24 - 07:50:11",
+        "28/06/24 - 08:10:11",
+        "29/06/24 - 05:12:11",
+        "30/06/24 - 09:26:11",
+        "31/06/24 - 08:32:11",
+        "01/07/24 - 08:40:11",
+        "02/07/24 - 08:43:11",
+        "03/07/24 - 07:50:11",
+        "04/07/24 - 07:51:11",
+        "05/07/24 - 07:56:11"
+    )
+
     Column(
         modifier = modifier
             .fillMaxSize()
             .padding(16.dp),
-        verticalArrangement = Arrangement.Center,
+        verticalArrangement = Arrangement.Top,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text("Activity List Page", fontSize = 24.sp)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.surface)
+                .padding(16.dp)
+                .border(1.dp, MaterialTheme.colorScheme.onSurface)
+                .shadow(4.dp, RoundedCornerShape(8.dp))
+                .padding(16.dp)
+        ) {
+            Column (
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "Relatorio:",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.size(8.dp))
+                hoursWorked.forEach { entry ->
+                    Text(
+                        text = entry,
+                        fontSize = 16.sp,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+        }
     }
 }
 
