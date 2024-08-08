@@ -4,13 +4,19 @@ import android.app.Activity
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.List
@@ -20,11 +26,14 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.incompanyapp.ui.theme.InCompanyAppTheme
+import kotlinx.coroutines.launch
+
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -46,25 +55,87 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainScreen() {
     var selectedScreen by remember { mutableStateOf("home") }
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+    var shouldLogout by remember { mutableStateOf(false) }
 
-    Scaffold(
-        topBar = {
-            Text(
-                text = "Sidebar",
-                modifier = Modifier.padding(16.dp),
-                fontSize = 20.sp
-            )
-        },
-        bottomBar = {
-            BottomNavigationBar(selectedScreen = selectedScreen) { screen ->
-                selectedScreen = screen
-            }
+    if (shouldLogout) {
+        val activity = LocalContext.current as? Activity
+        LaunchedEffect(Unit) {
+            activity?.finish()
         }
-    ) { padding ->
-        when (selectedScreen) {
-            "home" -> HomePage(Modifier.padding(padding))
-            "clock" -> ClockPage(Modifier.padding(padding))
-            "activityList" -> ActivityListPage(Modifier.padding(padding))
+    }
+    Box {
+        ModalNavigationDrawer(
+            drawerState = drawerState,
+            gesturesEnabled = true,
+            drawerContent = {
+                DrawerContent(
+                    onLogout = {
+                        shouldLogout = true
+                    }
+                )
+            },
+            content = {
+                Scaffold(
+                    topBar = {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(16.dp)
+                        ) {
+                            IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                                Icon(Icons.Filled.List, contentDescription = "Open Drawer")
+                            }
+                            Spacer(modifier = Modifier.size(16.dp))
+                            Text(
+                                text = "Sidebar",
+                                fontSize = 20.sp
+                            )
+                        }
+                    },
+                    bottomBar = {
+                        BottomNavigationBar(selectedScreen = selectedScreen) { screen ->
+                            selectedScreen = screen
+                        }
+                    }
+                ) { padding ->
+                    when (selectedScreen) {
+                        "home" -> HomePage(Modifier.padding(padding))
+                        "clock" -> ClockPage(Modifier.padding(padding))
+                        "activityList" -> ActivityListPage(Modifier.padding(padding))
+                    }
+                }
+            }
+        )
+    }
+
+}
+
+@Composable
+fun DrawerContent(onLogout: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .width(240.dp)  // Adjust the width as needed
+            .fillMaxHeight()
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.Top,
+        horizontalAlignment = Alignment.Start
+    ) {
+        Text("Companies", fontSize = 20.sp, modifier = Modifier.padding(bottom = 8.dp))
+
+        val companies = listOf("Company A", "Company B", "Company C")
+        for (company in companies) {
+            Text(text = company, fontSize = 16.sp, modifier = Modifier.padding(vertical = 8.dp))
+        }
+
+        Spacer(modifier = Modifier.weight(1f))
+
+        Button(
+            onClick = { onLogout() },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Logout")
         }
     }
 }
