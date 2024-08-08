@@ -75,8 +75,8 @@ fun LoginPage(modifier: Modifier = Modifier) {
         Image(
             painter = painterResource(id = R.drawable.logo),
             contentDescription = "App Logo",
-            modifier = Modifier.size(128.dp), // Adjust the size as needed
-            contentScale = ContentScale.Crop // Adjust the scaling if needed
+            modifier = Modifier.size(128.dp),
+            contentScale = ContentScale.Crop
         )
         Row(
             verticalAlignment = Alignment.CenterVertically,
