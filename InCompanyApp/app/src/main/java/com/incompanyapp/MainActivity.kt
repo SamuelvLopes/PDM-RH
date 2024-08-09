@@ -235,16 +235,6 @@ fun HomePage(
                 modifier = Modifier.padding(top = 8.dp)
             )
         }
-        Spacer(modifier = Modifier.size(24.dp))
-        Row(modifier = modifier) {
-            Button(
-                onClick = {
-                    activity?.finish()
-                }
-            ) {
-                Text("Sair")
-            }
-        }
 
         Box(
             modifier = Modifier
@@ -291,7 +281,6 @@ fun HomePage(
                 confirmButton = {
                     Button(
                         onClick = {
-                            // Registrar uma nova companhia com o código inserido
                             val newCompany = registerCompany(companyCode, "Endereço Desconhecido")
                             onCompanyAdded(newCompany)
                             openDialog = false
