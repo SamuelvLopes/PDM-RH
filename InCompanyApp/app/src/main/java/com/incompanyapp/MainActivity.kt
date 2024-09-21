@@ -1,70 +1,141 @@
 package com.incompanyapp
 
+import android.Manifest
 import android.app.Activity
+import android.content.Context
+import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.List
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.incompanyapp.data.model.Company
-import com.incompanyapp.data.repository.CompanyRepository
-import com.incompanyapp.data.repository.registerCompany
+import androidx.core.app.ActivityCompat
+import androidx.navigation.compose.rememberNavController
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationCallback
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationResult
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
+import com.google.android.gms.maps.model.LatLng
+import com.incompanyapp.db.fb.FBDatabase
+import com.incompanyapp.model.Company
+import com.incompanyapp.model.MainViewModel
+import com.incompanyapp.ui.nav.BottomNavBar
+import com.incompanyapp.ui.nav.MainNavHost
 import com.incompanyapp.ui.theme.InCompanyAppTheme
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+
+    private lateinit var fusedLocationClient: FusedLocationProviderClient
+    private lateinit var locationRequest: LocationRequest
+    private lateinit var locationCallback: LocationCallback
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val viewModel : MainViewModel by viewModels()
 
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+        locationRequest = LocationRequest.Builder(
+            Priority.PRIORITY_HIGH_ACCURACY, 10000 // 10 seconds interval
+        )
+            .setMinUpdateIntervalMillis(5000) // Minimum interval between updates
+            .setMaxUpdateDelayMillis(15000) // Maximum delay for batched location updates
+            .build()
 
         setContent {
+            if (!viewModel.loggedIn) {
+                this.finish()
+            }
+            val fbDB = remember { FBDatabase (viewModel) }
+            val context = LocalContext.current
+
+            var userLocation by remember { mutableStateOf<LatLng?>(null) }
+            val launcher = rememberLauncherForActivityResult(
+                contract = ActivityResultContracts.RequestPermission(),
+                onResult = { granted ->
+                    if (granted) {
+                        // Get user location if permission is granted
+                        requestLocationUpdates(userLocationSetter = { latLng -> userLocation = latLng })
+                    }
+                }
+            )
+
+            LaunchedEffect(Unit) {
+                launcher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+            }
+
             InCompanyAppTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    MainScreen()
+                    MainScreen(viewModel, fbDB, context, userLocation)
                 }
             }
         }
     }
+
+    private fun requestLocationUpdates(userLocationSetter: (LatLng) -> Unit) {
+        if (ActivityCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
+            // Define the location callback
+            locationCallback = object : LocationCallback() {
+                override fun onLocationResult(locationResult: LocationResult) {
+                    locationResult.let {
+                        for (location in it.locations) {
+                            val userLatLng = LatLng(location.latitude, location.longitude)
+                            // Set user location via the setter function passed in
+                            userLocationSetter(userLatLng)
+                        }
+                    }
+                }
+            }
+
+            // Request location updates
+            fusedLocationClient.requestLocationUpdates(
+                locationRequest,
+                locationCallback,
+                null
+            )
+        }
+    }
+
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainScreen() {
+fun MainScreen(viewModel: MainViewModel, fbDB: FBDatabase, context: Context, userLocation: LatLng?) {
     var selectedScreen by remember { mutableStateOf("home") }
     var selectedCompany by remember { mutableStateOf<Company?>(null) }
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+    val navController = rememberNavController()
     var shouldLogout by remember { mutableStateOf(false) }
-    var companies by remember { mutableStateOf(CompanyRepository.getCompanies()) }
+    val launcher = rememberLauncherForActivityResult(contract =
+        ActivityResultContracts.RequestPermission(), onResult = {} )
 
     if (shouldLogout) {
         val activity = LocalContext.current as? Activity
@@ -79,10 +150,10 @@ fun MainScreen() {
             gesturesEnabled = true,
             drawerContent = {
                 DrawerContent(
-                    companies = companies,
-                    selectedCompany = selectedCompany,
+                    viewModel = viewModel,
+                    fbDB = fbDB,
                     onCompanySelected = { company ->
-                        selectedCompany = company
+                        viewModel.selectedCompany.value = company
                         scope.launch { drawerState.close() }
                     },
                     onLogout = {
@@ -115,23 +186,19 @@ fun MainScreen() {
                         )
                     },
                     bottomBar = {
-                        BottomNavigationBar(selectedScreen = selectedScreen) { screen ->
-                            selectedScreen = screen
-                        }
+                        BottomNavBar(navController = navController)
                     }
-                ) { padding ->
-                    when (selectedScreen) {
-                        "home" -> HomePage(
-                            modifier = Modifier.padding(padding),
-                            selectedCompany = selectedCompany,
-                            companies = companies,
-                            onCompanyAdded = { newCompany ->
-                                companies = CompanyRepository.getCompanies()
-                                selectedCompany = newCompany
-                            }
+                ) { innerPadding ->
+                    Box(modifier = Modifier.padding(innerPadding)) {
+                        launcher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                        MainNavHost(
+                            navController = navController,
+                            viewModel = viewModel,
+                            context = context,
+                            fbDB = fbDB,
+                            userLocation = userLocation,
+                            modifier = Modifier.padding(innerPadding)
                         )
-                        "clock" -> ClockPage(Modifier.padding(padding))
-                        "activityList" -> ActivityListPage(Modifier.padding(padding))
                     }
                 }
             }
@@ -141,11 +208,13 @@ fun MainScreen() {
 
 @Composable
 fun DrawerContent(
-    companies: List<Company>,
-    selectedCompany: Company?,
+    viewModel: MainViewModel,
+    fbDB: FBDatabase,
     onCompanySelected: (Company) -> Unit,
     onLogout: () -> Unit
 ) {
+    var showAddCompanyDialog by remember { mutableStateOf(false) }
+
     Column(
         modifier = Modifier
             .width(240.dp)
@@ -157,16 +226,24 @@ fun DrawerContent(
     ) {
         Text("Companies", fontSize = 20.sp, modifier = Modifier.padding(bottom = 8.dp))
 
-        for (company in companies) {
+        for (company in viewModel.companies) {
             Text(
                 text = company.name,
                 fontSize = 16.sp,
                 modifier = Modifier
                     .padding(vertical = 8.dp)
                     .clickable { onCompanySelected(company) }
-                    .background(if (selectedCompany?.id == company.id) MaterialTheme.colorScheme.primary else Color.Transparent)
+                    .background(if (viewModel.selectedCompany.value?.name == company.name) MaterialTheme.colorScheme.primary else Color.Transparent)
                     .padding(8.dp)
             )
+        }
+
+        // Button to open dialog for adding a new company
+        Button(
+            onClick = { showAddCompanyDialog = true },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Add Company")
         }
 
         Spacer(modifier = Modifier.weight(1f))
@@ -177,99 +254,17 @@ fun DrawerContent(
         ) {
             Text("Logout")
         }
-    }
-}
 
-@Composable
-fun BottomNavigationBar(selectedScreen: String, onScreenSelected: (String) -> Unit) {
-    NavigationBar {
-        NavigationBarItem(
-            icon = { Icon(Icons.Filled.Home, contentDescription = "Home") },
-            label = { Text("Home") },
-            selected = selectedScreen == "home",
-            onClick = { onScreenSelected("home") }
-        )
-        NavigationBarItem(
-            icon = { Icon(Icons.Filled.PlayArrow, contentDescription = "Clock") },
-            label = { Text("Clock") },
-            selected = selectedScreen == "clock",
-            onClick = { onScreenSelected("clock") }
-        )
-        NavigationBarItem(
-            icon = { Icon(Icons.Filled.List, contentDescription = "Activity List") },
-            label = { Text("Activities") },
-            selected = selectedScreen == "activityList",
-            onClick = { onScreenSelected("activityList") }
-        )
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Preview(showBackground = true)
-@Composable
-fun HomePage(
-    modifier: Modifier = Modifier,
-    selectedCompany: Company?,
-    companies: List<Company>,
-    onCompanyAdded: (Company) -> Unit
-) {
-    val activity = LocalContext.current as? Activity
-    var openDialog by remember { mutableStateOf(true) }
-    var companyCode by rememberSaveable { mutableStateOf("") }
-
-    Column(
-        modifier = Modifier
-            .padding(16.dp)
-            .fillMaxSize(),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Text(
-            text = "Bem-vindo/a!",
-            fontSize = 24.sp
-        )
-        selectedCompany?.let {
-            Text(
-                text = "Empresa: ${it.name}",
-                fontSize = 18.sp,
-                modifier = Modifier.padding(top = 8.dp)
-            )
-        }
-
-        Box(
-            modifier = Modifier
-                .padding(16.dp)
-                .background(Color.LightGray)
-                .padding(16.dp)
-                .fillMaxWidth(),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Text(
-                    text = "Banco de Horas:",
-                    fontSize = 18.sp,
-                    textAlign = TextAlign.Center
-                )
-                Text(
-                    text = "+ 03:45:30",
-                    fontSize = 32.sp,
-                    textAlign = TextAlign.Center
-                )
-            }
-        }
-
-        if (openDialog) {
+        if (showAddCompanyDialog) {
+            var companyCode by rememberSaveable { mutableStateOf("") }
             AlertDialog(
-                onDismissRequest = {},
-                title = { Text(text = "Novo usuário!") },
+                onDismissRequest = { showAddCompanyDialog = false },
+                title = { Text(text = "Add New Company!") },
                 text = {
                     Column(
                         modifier = Modifier.padding(16.dp),
                     ) {
-                        Text("Você não está associado a nenhuma empresa, por favor entre com o código informado pelo administrador:")
+                        Text("Por favor entre com o código informado pelo administrador:")
                         Spacer(modifier = Modifier.size(24.dp))
                         OutlinedTextField(
                             value = companyCode,
@@ -281,9 +276,13 @@ fun HomePage(
                 confirmButton = {
                     Button(
                         onClick = {
-                            val newCompany = registerCompany(companyCode, "Endereço Desconhecido")
-                            onCompanyAdded(newCompany)
-                            openDialog = false
+                            for (avaCompany in viewModel.availableCompanies) {
+                                if (avaCompany.code == companyCode) {
+                                    fbDB.add(avaCompany)
+                                    viewModel.selectedCompany.value = avaCompany
+                                    showAddCompanyDialog = false
+                                }
+                            }
                         },
                         enabled = companyCode.isNotEmpty()
                     ) {
@@ -291,158 +290,6 @@ fun HomePage(
                     }
                 }
             )
-        }
-    }
-}
-
-@Composable
-fun ClockPage(modifier: Modifier = Modifier) {
-    var isRunning by remember { mutableStateOf(false) }
-    var elapsedTime by remember { mutableStateOf(0) }
-    var isPaused by remember { mutableStateOf(false) }
-    val timer = remember { mutableStateOf(0L) }
-    val coroutineScope = rememberCoroutineScope()
-
-    // Timer logic
-    LaunchedEffect(isRunning) {
-        if (isRunning) {
-            timer.value = System.currentTimeMillis()
-            while (isRunning) {
-                if (!isPaused) {
-                    delay(1000) // Delay for 1 second
-                    elapsedTime = ((System.currentTimeMillis() - timer.value) / 1000).toInt()
-                }
-            }
-        }
-    }
-
-    fun formatTime(seconds: Int): String {
-        val minutes = seconds / 60
-        val displaySeconds = seconds % 60
-        return String.format("%02d:%02d", minutes, displaySeconds)
-    }
-
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Box(
-            modifier = Modifier
-                .padding(16.dp)
-                .background(Color.LightGray)
-                .padding(16.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = formatTime(elapsedTime),
-                    fontSize = 24.sp,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(bottom = 16.dp)
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    Button(
-                        onClick = {
-                            if (!isRunning) {
-                                timer.value = System.currentTimeMillis()
-                                isRunning = true
-                                isPaused = false
-                            }
-                        }
-                    ) {
-                        Icon(Icons.Filled.PlayArrow, contentDescription = "Start")
-                    }
-                    Button(
-                        onClick = {
-                            if (isRunning) {
-                                isPaused = !isPaused
-                            }
-                        }
-                    ) {
-                        Icon(Icons.Filled.Clear, contentDescription = "Pause")
-                    }
-                    Button(
-                        onClick = {
-                            isRunning = false
-                            isPaused = false
-                            elapsedTime = 0
-                        }
-                    ) {
-                        Icon(Icons.Filled.Refresh, contentDescription = "Stop")
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun ActivityListPage(modifier: Modifier = Modifier) {
-    val hoursWorked = listOf(
-        "25/06/24 - 07:20:10",
-        "26/06/24 - 08:50:11",
-        "27/06/24 - 07:50:11",
-        "28/06/24 - 08:10:11",
-        "29/06/24 - 05:12:11",
-        "30/06/24 - 09:26:11",
-        "31/06/24 - 08:32:11",
-        "01/07/24 - 08:40:11",
-        "02/07/24 - 08:43:11",
-        "03/07/24 - 07:50:11",
-        "04/07/24 - 07:51:11",
-        "05/07/24 - 07:56:11"
-    )
-
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        verticalArrangement = Arrangement.Top,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.surface)
-                .padding(16.dp)
-                .border(1.dp, MaterialTheme.colorScheme.onSurface)
-                .shadow(4.dp, RoundedCornerShape(8.dp))
-                .padding(16.dp)
-        ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = "Relatório:",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 8.dp),
-                    textAlign = TextAlign.Center
-                )
-                Spacer(modifier = Modifier.size(8.dp))
-                hoursWorked.forEach { entry ->
-                    Text(
-                        text = entry,
-                        fontSize = 16.sp,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 4.dp),
-                        textAlign = TextAlign.Center
-                    )
-                }
-            }
         }
     }
 }
