@@ -1,6 +1,7 @@
 package com.incompanyapp.db.fb
 
 import com.google.android.gms.maps.model.LatLng
+import com.incompanyapp.model.Clock
 import com.incompanyapp.model.Company
 
 class FBCompany {

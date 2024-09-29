@@ -1,6 +1,8 @@
 package com.incompanyapp.ui.nav
 
 import android.content.Context
+import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
@@ -14,6 +16,7 @@ import com.incompanyapp.ui.ClockPage
 import com.incompanyapp.ui.HomePage
 
 
+@RequiresApi(Build.VERSION_CODES.O)
 @Composable
 fun MainNavHost(
     navController: NavHostController,
@@ -37,7 +40,8 @@ fun MainNavHost(
             ClockPage(
                 viewModel = viewModel,
                 userLocation = userLocation,
-                modifier = modifier
+                modifier = modifier,
+                fbDB = fbDB
             )
         }
         composable(route = BottomNavItem.ActivityListPage.route) {

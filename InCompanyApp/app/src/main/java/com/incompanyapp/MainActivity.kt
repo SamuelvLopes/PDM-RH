@@ -4,12 +4,14 @@ import android.Manifest
 import android.app.Activity
 import android.content.Context
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.annotation.RequiresApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -50,6 +52,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var locationRequest: LocationRequest
     private lateinit var locationCallback: LocationCallback
 
+    @RequiresApi(Build.VERSION_CODES.O)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val viewModel : MainViewModel by viewModels()
@@ -125,6 +128,7 @@ class MainActivity : ComponentActivity() {
 
 }
 
+@RequiresApi(Build.VERSION_CODES.O)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(viewModel: MainViewModel, fbDB: FBDatabase, context: Context, userLocation: LatLng?) {
@@ -153,7 +157,9 @@ fun MainScreen(viewModel: MainViewModel, fbDB: FBDatabase, context: Context, use
                     viewModel = viewModel,
                     fbDB = fbDB,
                     onCompanySelected = { company ->
-                        viewModel.selectedCompany.value = company
+                        viewModel.selectedCompany = company
+                        viewModel.onCompanyUpdated(company)
+
                         scope.launch { drawerState.close() }
                     },
                     onLogout = {
@@ -233,7 +239,7 @@ fun DrawerContent(
                 modifier = Modifier
                     .padding(vertical = 8.dp)
                     .clickable { onCompanySelected(company) }
-                    .background(if (viewModel.selectedCompany.value?.name == company.name) MaterialTheme.colorScheme.primary else Color.Transparent)
+                    .background(if (viewModel.selectedCompany?.name == company.name) MaterialTheme.colorScheme.primary else Color.Transparent)
                     .padding(8.dp)
             )
         }
@@ -279,7 +285,7 @@ fun DrawerContent(
                             for (avaCompany in viewModel.availableCompanies) {
                                 if (avaCompany.code == companyCode) {
                                     fbDB.add(avaCompany)
-                                    viewModel.selectedCompany.value = avaCompany
+                                    viewModel.selectedCompany = avaCompany
                                     showAddCompanyDialog = false
                                 }
                             }
