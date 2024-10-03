@@ -59,11 +59,11 @@ fun HomePage(
             fontSize = 24.sp
         )
         Text(
-            text = "Empresa: ${viewModel.selectedCompany.value?.name}",
+            text = if(viewModel.selectedCompany?.name?.isNotEmpty() == true) "Empresa: ${viewModel.selectedCompany?.name}" else "Selecione uma empresa",
             fontSize = 18.sp,
             modifier = Modifier.padding(top = 8.dp)
         )
-        if (!viewModel.selectedCompany.value?.name.equals(null)) {
+        if (!viewModel.selectedCompany?.name.equals(null)) {
             ClockBankBox()
         }
 
@@ -90,7 +90,7 @@ fun HomePage(
                             for (avaCompany in viewModel.availableCompanies) {
                                 if (avaCompany.code == companyCode) {
                                     fbDB.add(avaCompany)
-                                    viewModel.selectedCompany.value = avaCompany
+                                    viewModel.selectedCompany = avaCompany
                                     openDialog = false
                                 }
                             }
